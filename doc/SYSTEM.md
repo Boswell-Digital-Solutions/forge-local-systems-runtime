@@ -1,29 +1,84 @@
-# Forge Local Systems Runtime — Complete System Reference
+        # forge-local-systems-runtime - Compiled System Reference
 
-> Baseline documentation-protocol adoption for Forge Local Runtime.
-> "Current repo truth before deeper authored expansion."
+        **Designation:** FLS
+        **Document role:** Canonical compiled technical reference for the Forge local systems runtime
+        **Source:** `doc/system/`
+        **Build command:** `bash doc/system/BUILD.sh`
+        **Document version:** 2.0 (2026-06-22) - canonical compliance migration
+        **Protocol:** BDS Documentation Protocol v2.0; BDS Repo Documentation System Canonical Compliance Standard
 
-**Document version:** 0.1 (2026-04-03) — Baseline protocol adoption
+        > **Generated artifact warning:** `doc/FLSSYSTEM.md` is assembled output. Edit
+        > the source modules under `doc/system/` and rebuild. Hand edits to the
+        > compiled artifact are overwritten by the next build.
+
+        Assembly contract:
+
+        - Command: `bash doc/system/BUILD.sh`
+        - Validation: `bash doc/system/validate_snapshots.sh` runs during assembly
+        - Primary output: `doc/FLSSYSTEM.md`
+
+        This `doc/system/` tree is the canonical source of truth for forge-local-systems-runtime. It uses
+        explicit **truth classes**: canonical facts define repo role, authority
+        boundaries, contract behavior, runtime behavior, and verification doctrine;
+        snapshot facts are dated, audit-derived counts and current implementation
+        inventory that may drift between audits.
+
+        | Part | File | Contents |
+        | --- | --- | --- |
+        | §1 | `00_overview/00-overview.md` | Overview |
+| §2 | `00_overview/01-architecture.md` | Architecture |
+| §3 | `00_overview/01-overview-philosophy.md` | 1. Overview & Philosophy |
+| §4 | `00_overview/02-architecture.md` | 2. Architecture |
+| §5 | `00_overview/04-project-structure.md` | 4. Project Structure |
+| §6 | `10_service-contract/08-api-layer.md` | 8. API Layer |
+| §7 | `10_service-contract/10-ecosystem-integration.md` | 10. Ecosystem Integration |
+| §8 | `20_runtime/07-frontend.md` | 7. Frontend |
+| §9 | `20_runtime/09-backend.md` | 9. Backend |
+| §10 | `20_runtime/11-database-schema.md` | 11. Database Schema |
+| §11 | `20_runtime/12-ai-integration.md` | 12. AI Integration |
+| §12 | `20_runtime/13-error-handling.md` | 13. Error Handling Contract |
+| §13 | `30_dependencies/03-tech-stack.md` | 3. Tech Stack |
+| §14 | `30_dependencies/06-design-system.md` | 6. Design System |
+| §15 | `40_governance/10-scope.md` | Scope |
+| §16 | `40_governance/30-governance.md` | Governance |
+| §17 | `40_governance/40-change-control.md` | Change Control |
+| §18 | `50_operations/05-configuration.md` | 5. Configuration & Environment |
+| §19 | `50_operations/14-testing-infrastructure.md` | 14. Testing Infrastructure |
+| §20 | `50_operations/15-handover-migration-notes.md` | 15. Handover / Migration Notes |
+| §21 | `99_appendices/20-structure.md` | Structure |
+| §22 | `99_appendices/90-appendices.md` | Appendices |
+
+        ## Quick Assembly
+
+        ```bash
+        bash doc/system/BUILD.sh
+        ```
 
 ---
 
-## Table of Contents
+# Overview
 
-1. [Overview & Philosophy](#1-overview--philosophy)
-2. [Architecture](#2-architecture)
-3. [Tech Stack](#3-tech-stack)
-4. [Project Structure](#4-project-structure)
-5. [Configuration & Environment](#5-configuration--environment)
-6. [Design System](#6-design-system)
-7. [Frontend](#7-frontend)
-8. [API Layer](#8-api-layer)
-9. [Backend](#9-backend)
-10. [Ecosystem Integration](#10-ecosystem-integration)
-11. [Database Schema](#11-database-schema)
-12. [AI Integration](#12-ai-integration)
-13. [Error Handling Contract](#13-error-handling-contract)
-14. [Testing Infrastructure](#14-testing-infrastructure)
-15. [Handover / Migration Notes](#15-handover--migration-notes)
+**Document version:** 1.0 (bootstrap scaffold)
+
+System identity, role, and boundary with the rest of the Forge ecosystem.
+
+> This chapter is a registry-generated bootstrap scaffold for a
+> `documentation` class documentation system. Replace this placeholder with
+> real authored content. Registry will not invent repo truth that is not
+> already present in the repo.
+
+---
+
+# Architecture
+
+**Document version:** 1.0 (bootstrap scaffold)
+
+High-level architecture, authority posture, and surface ownership.
+
+> This chapter is a registry-generated bootstrap scaffold for a
+> `documentation` class documentation system. Replace this placeholder with
+> real authored content. Registry will not invent repo truth that is not
+> already present in the repo.
 
 ---
 
@@ -65,18 +120,6 @@ forge-local-runtime/
 
 ---
 
-## 3. Tech Stack
-
-This baseline stack inventory is inferred from repository markers and directory layout.
-
-### 3.1 Detected Surfaces
-
-| Layer | Marker | Current interpretation |
-| --- | --- | --- |
-| Persistence / Schemas | `alembic/`, `migrations/`, `db/`, `sql/`, `models/`, or `schemas/` present | Database, migration, or schema layer detected |
-
----
-
 ## 4. Project Structure
 
 ### 4.1 Directory Layout
@@ -103,31 +146,29 @@ forge-local-runtime/
 
 ---
 
-## 5. Configuration & Environment
+## 8. API Layer
 
-This baseline section has not yet enumerated every environment variable or configuration file.
+No obvious dedicated API directory was detected from the current top-level directory layout.
 
-### 5.1 Current Status
+### 8.1 Current Status
 
 | Surface | Status |
 | --- | --- |
-| Environment variable inventory | Not yet expanded in this baseline |
-| Config ownership mapping | Not yet expanded in this baseline |
-| Protocol requirement | Every env var must be documented here as this repo matures |
+| Endpoint inventory | Expand with real routes and shapes if this repo exposes APIs |
+| Middleware and auth | Expand when the transport contract is cataloged |
 
 ---
 
-## 6. Design System
+## 10. Ecosystem Integration
 
-This section is a placeholder unless a UI surface is present in the current repo.
+This baseline section should be expanded with concrete downstream and upstream dependencies as they are documented.
 
-### 6.1 Current Status
+### 10.1 Current Status
 
 | Surface | Status |
 | --- | --- |
-| Design tokens | Expand when UI tokens are inventoried |
-| Component patterns | Expand when UI components are cataloged |
-| Brand posture | Keep this section grounded in implemented UI reality only |
+| Shared service integrations | Expand as concrete integrations are cataloged |
+| Cross-repo boundaries | Keep explicit as this repo's authority boundary is clarified |
 
 ---
 
@@ -144,19 +185,6 @@ No obvious frontend surface was detected from the current top-level directory la
 
 ---
 
-## 8. API Layer
-
-No obvious dedicated API directory was detected from the current top-level directory layout.
-
-### 8.1 Current Status
-
-| Surface | Status |
-| --- | --- |
-| Endpoint inventory | Expand with real routes and shapes if this repo exposes APIs |
-| Middleware and auth | Expand when the transport contract is cataloged |
-
----
-
 ## 9. Backend
 
 This baseline section records the backend or core runtime surfaces detectable from the repo layout.
@@ -167,19 +195,6 @@ This baseline section records the backend or core runtime surfaces detectable fr
 | --- | --- |
 | Core runtime | Expand from `app/`, `service/`, `cortex_runtime/`, `crates/`, or `src-tauri/` as applicable |
 | Delivery posture | Keep this section aligned with implemented code, not roadmap intent |
-
----
-
-## 10. Ecosystem Integration
-
-This baseline section should be expanded with concrete downstream and upstream dependencies as they are documented.
-
-### 10.1 Current Status
-
-| Surface | Status |
-| --- | --- |
-| Shared service integrations | Expand as concrete integrations are cataloged |
-| Cross-repo boundaries | Keep explicit as this repo's authority boundary is clarified |
 
 ---
 
@@ -220,6 +235,85 @@ Current error-handling documentation is a baseline only.
 
 ---
 
+## 3. Tech Stack
+
+This baseline stack inventory is inferred from repository markers and directory layout.
+
+### 3.1 Detected Surfaces
+
+| Layer | Marker | Current interpretation |
+| --- | --- | --- |
+| Persistence / Schemas | `alembic/`, `migrations/`, `db/`, `sql/`, `models/`, or `schemas/` present | Database, migration, or schema layer detected |
+
+---
+
+## 6. Design System
+
+This section is a placeholder unless a UI surface is present in the current repo.
+
+### 6.1 Current Status
+
+| Surface | Status |
+| --- | --- |
+| Design tokens | Expand when UI tokens are inventoried |
+| Component patterns | Expand when UI components are cataloged |
+| Brand posture | Keep this section grounded in implemented UI reality only |
+
+---
+
+# Scope
+
+**Document version:** 1.0 (bootstrap scaffold)
+
+Scope and authority boundary of this documentation system.
+
+> This chapter is a registry-generated bootstrap scaffold for a
+> `documentation` class documentation system. Replace this placeholder with
+> real authored content. Registry will not invent repo truth that is not
+> already present in the repo.
+
+---
+
+# Governance
+
+**Document version:** 1.0 (bootstrap scaffold)
+
+Ownership, review, and change-authority boundaries.
+
+> This chapter is a registry-generated bootstrap scaffold for a
+> `documentation` class documentation system. Replace this placeholder with
+> real authored content. Registry will not invent repo truth that is not
+> already present in the repo.
+
+---
+
+# Change Control
+
+**Document version:** 1.0 (bootstrap scaffold)
+
+Change-control workflow, proposal lifecycle, and audit.
+
+> This chapter is a registry-generated bootstrap scaffold for a
+> `documentation` class documentation system. Replace this placeholder with
+> real authored content. Registry will not invent repo truth that is not
+> already present in the repo.
+
+---
+
+## 5. Configuration & Environment
+
+This baseline section has not yet enumerated every environment variable or configuration file.
+
+### 5.1 Current Status
+
+| Surface | Status |
+| --- | --- |
+| Environment variable inventory | Not yet expanded in this baseline |
+| Config ownership mapping | Not yet expanded in this baseline |
+| Protocol requirement | Every env var must be documented here as this repo matures |
+
+---
+
 ## 14. Testing Infrastructure
 
 This baseline section records only that testing surfaces exist in the repository tree.
@@ -241,3 +335,32 @@ This repository entered a baseline documentation-protocol migration on 2026-04-0
 
 - modular `doc/system/` was established or normalized to support root `SYSTEM.md`
 - further authored expansion is still required for exact APIs, schemas, and runtime contracts
+
+---
+
+# Structure
+
+**Document version:** 1.0 (bootstrap scaffold)
+
+Module/chapter layout and cross-reference rules.
+
+> This chapter is a registry-generated bootstrap scaffold for a
+> `documentation` class documentation system. Replace this placeholder with
+> real authored content. Registry will not invent repo truth that is not
+> already present in the repo.
+
+---
+
+# Appendices
+
+**Document version:** 1.0 (carry-forward)
+
+Appendices, glossary, and cross-references.
+
+## Unmapped legacy chapters
+
+The following legacy chapters were carried forward but could not be
+deterministically mapped to a class-aware slot. Review and place them by
+hand:
+
+- `Forge Local Systems Runtime — Complete System Reference`
