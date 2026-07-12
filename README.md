@@ -1,4 +1,9 @@
-# Forge Local Runtime
+# bds · forge-local-systems-runtime
+
+> **System identity — bds family (Boswell Digital Solutions business system, local-systems tier).**
+> The governance-first constitutional repository for the shared local service substrate of the Forge **ecosystem backend**; part of `ecosystem/local-systems`.
+> **Purpose:** defines runtime doctrine, cross-service boundaries, ownership lines, and anti-drift enforcement for the four governed local services (DF Local Foundation, NeuronForge Local, Cortex, FA Local) — not an implementation or executable itself.
+> **Not the Forge counterpart:** the public-app support boundary is `apps/public-app-local-support/forge-local-runtime-master-reference` (Forge family).
 
 ## What this repository is
 

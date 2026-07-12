@@ -1,5 +1,7 @@
 # Overview
 
+> **System identity — bds family (Boswell Digital Solutions business system, local-systems tier).** forge-local-systems-runtime is the governance-first constitutional repository for the shared local service substrate of the Forge ecosystem backend, in `ecosystem/local-systems`. It is **not** the Forge counterpart `apps/public-app-local-support/forge-local-runtime-master-reference`.
+
 **Document version:** 1.0 (bootstrap scaffold)
 
 System identity, role, and boundary with the rest of the Forge ecosystem.
