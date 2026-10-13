@@ -24,6 +24,16 @@ What a pass guarantees, and what it does not
   (an optional ``source_entry_id`` with a unique index). That is a proposal, not part of this change
   (docs/KNOWN_ISSUES.md, FLS-COST-SYNC-NOT-EXACTLY-ONCE-20261013).
 
+* **One pass at a time.** A pass takes a PostgreSQL session advisory lock on the runtime database. A second
+  pass that starts while the first one runs does nothing and reports ``another_pass_running``. Without
+  the lock, two workers both see a row as unseen, and both write it to the destination, which duplicates it.
+* **Overlap re-scan.** A pass starts ``FORGE_COST_SYNC_OVERLAP_HOURS`` (default 6) before the checkpoint, not
+  at the checkpoint. A row that became visible late, with a ``created_at`` older than the checkpoint, is then
+  found. Already mirrored rows are skipped. A row that becomes visible later than the overlap is NOT found.
+* **Freshness is coverage.** A complete pass records the time it scanned through (``covered_through``). A
+  pass that copied rows and then stopped does not move it. ``last_successful_sync`` is when the last
+  complete pass ended. Neither is "when a row was last copied".
+
 Credentials (separate on purpose)
 ---------------------------------
 * ``FORGE_COST_SYNC_CLOUD_API_KEY``  the cloud read key: DataForge scope ``costs:read`` on the service
@@ -36,7 +46,7 @@ The two keys are never used for each other's destination.
 Environment: ``DATAFORGE_URL`` (cloud base), ``DATAFORGE_LOCAL_URL`` (default http://127.0.0.1:8005),
 ``FORGE_COST_SYNC_LOOKBACK_DAYS`` (first run, default 30), ``FORGE_COST_SYNC_PAGE_LIMIT`` (1..200,
 default 200), ``FORGE_COST_SYNC_WINDOW_HOURS`` (1..168, default 24), ``FORGE_COST_SYNC_LAG_SECONDS``
-(0..3600, default 120).
+(0..3600, default 120), ``FORGE_COST_SYNC_OVERLAP_HOURS`` (0..168, default 6).
 """
 from __future__ import annotations
 
@@ -55,6 +65,11 @@ _MAX_OFFSET = 10_000  # safety bound on pagination, per window
 _MAX_WINDOWS = 400  # safety bound on windows per pass
 _LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 _HEARTBEAT_ID = "__sync_heartbeat__"  # sentinel row in cost_sync.seen; created_at = epoch, so it never moves the checkpoint
+#: Sentinel row: synced_at holds the time the last complete pass scanned through. created_at = epoch.
+_COVERAGE_ID = "__sync_covered_through__"
+#: Sentinel ids. A cloud entry with one of these ids would be read as already mirrored, so it is refused.
+_RESERVED_IDS = frozenset({_HEARTBEAT_ID, _COVERAGE_ID})
+_PASS_LOCK_KEY = 0x434F535453594E43  # "COSTSYNC": the advisory lock key of one pass
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 _SOURCE = "cloud_dataforge"
 
@@ -219,7 +234,7 @@ class SyncResult:
     complete: bool = True
     #: A fixed code when ``complete`` is False: ``cloud_read_refused``, ``cloud_read_unavailable``,
     #: ``cloud_read_error``, ``listing_incomplete``, ``window_limit``, ``cloud_entry_malformed``,
-    #: ``local_write_rejected`` or ``local_write_unavailable``.
+    #: ``another_pass_running``, ``local_write_rejected`` or ``local_write_unavailable``.
     stopped_reason: str | None = None
     #: Fixed detail for a refusal: ``{"status": 403, "refusal_kind": "...", "reason": "..."}``.
     failure: dict[str, Any] | None = None
@@ -227,6 +242,10 @@ class SyncResult:
     #: When a pass last completed (heartbeat), or None if none has. Not "when a row was last mirrored".
     last_successful_sync: str | None = None
     age_seconds: float | None = None
+    #: The time the last COMPLETE pass scanned through: every row visible then, up to this time, is mirrored.
+    covered_through: str | None = None
+    #: How old that coverage is. Larger than ``age_seconds`` by about the commit lag.
+    coverage_age_seconds: float | None = None
 
 
 def exit_code_for(result: SyncResult) -> int:
@@ -244,6 +263,13 @@ class CostLedgerSyncWorker:
         "VALUES (%(cloud_id)s, %(created_at)s, NOW()) "
         "ON CONFLICT (cloud_id) DO UPDATE SET synced_at = NOW()"
     )
+    PASS_LOCK_SQL = "SELECT pg_try_advisory_lock(%(key)s)"
+    PASS_UNLOCK_SQL = "SELECT pg_advisory_unlock(%(key)s)"
+    COVERAGE_WRITE_SQL = (
+        "INSERT INTO cost_sync.seen (cloud_id, created_at, synced_at) "
+        "VALUES (%(cloud_id)s, %(created_at)s, %(covered_through)s) "
+        "ON CONFLICT (cloud_id) DO UPDATE SET synced_at = %(covered_through)s"
+    )
     SEEN_SQL = "SELECT cloud_id FROM cost_sync.seen WHERE cloud_id = ANY(%(ids)s)"
     MARK_SEEN_SQL = (
         "INSERT INTO cost_sync.seen (cloud_id, created_at) "
@@ -253,12 +279,21 @@ class CostLedgerSyncWorker:
 
     # -- one pass --------------------------------------------------------------------------------
     def sync_once(self, connection: DbConnection) -> SyncResult:
+        if not self._acquire_pass_lock(connection):
+            return self._result(connection, _utcnow(), stopped="another_pass_running")
+        try:
+            return self._sync_pass(connection)
+        finally:
+            self._release_pass_lock(connection)
+
+    def _sync_pass(self, connection: DbConnection) -> SyncResult:
         now = _utcnow()
         lag = timedelta(seconds=_int_env("FORGE_COST_SYNC_LAG_SECONDS", 120, 0, 3600))
         window = timedelta(hours=_int_env("FORGE_COST_SYNC_WINDOW_HOURS", 24, 1, 168))
         horizon = now - lag
         watermark = self._watermark(connection)
-        cursor = watermark or (now - timedelta(days=_int_env("FORGE_COST_SYNC_LOOKBACK_DAYS", 30, 1, 3650)))
+        overlap = timedelta(hours=_int_env("FORGE_COST_SYNC_OVERLAP_HOURS", 6, 0, 168))
+        cursor = (watermark - overlap) if watermark else (now - timedelta(days=_int_env("FORGE_COST_SYNC_LOOKBACK_DAYS", 30, 1, 3650)))
 
         fetched = synced = skipped = failed = 0
         stopped: str | None = None
@@ -286,7 +321,7 @@ class CostLedgerSyncWorker:
             keyed: list[tuple[datetime, str, dict[str, Any]]] = []
             for entry in entries:
                 created = _parse_dt(entry.get("created_at"))
-                if created is None or "id" not in entry:
+                if created is None or "id" not in entry or str(entry["id"]) in _RESERVED_IDS:
                     stopped = "cloud_entry_malformed"
                     break
                 keyed.append((created, str(entry["id"]), entry))
@@ -320,8 +355,26 @@ class CostLedgerSyncWorker:
         complete = stopped is None
         if complete:
             self._write_heartbeat(connection)
+            self._write_coverage(connection, horizon)
             connection.commit()
+        return self._result(
+            connection, now, fetched=fetched, synced=synced, skipped=skipped, failed=failed, stopped=stopped, failure=failure
+        )
+
+    def _result(
+        self,
+        connection: DbConnection,
+        now: datetime,
+        *,
+        fetched: int = 0,
+        synced: int = 0,
+        skipped: int = 0,
+        failed: int = 0,
+        stopped: str | None = None,
+        failure: dict[str, Any] | None = None,
+    ) -> SyncResult:
         last_sync, age = self._last_successful_sync(connection, now)
+        covered, covered_age = self._covered_through(connection, now)
         final_watermark = self._watermark(connection)
         return SyncResult(
             fetched=fetched,
@@ -329,11 +382,13 @@ class CostLedgerSyncWorker:
             skipped=skipped,
             failed=failed,
             watermark=final_watermark.isoformat() if final_watermark else None,
-            complete=complete,
+            complete=stopped is None,
             stopped_reason=stopped,
             failure=failure,
             last_successful_sync=last_sync.isoformat() if last_sync else None,
             age_seconds=age,
+            covered_through=covered.isoformat() if covered else None,
+            coverage_age_seconds=covered_age,
         )
 
     # -- status ----------------------------------------------------------------------------------
@@ -341,11 +396,14 @@ class CostLedgerSyncWorker:
         """Freshness without reading the cloud: the last completed pass, its age, and the checkpoint."""
         now = _utcnow()
         last_sync, age = self._last_successful_sync(connection, now)
+        covered, covered_age = self._covered_through(connection, now)
         watermark = self._watermark(connection)
         return {
             "source": _SOURCE,
             "last_successful_sync": last_sync.isoformat() if last_sync else None,
             "age_seconds": age,
+            "covered_through": covered.isoformat() if covered else None,
+            "coverage_age_seconds": covered_age,
             "watermark": watermark.isoformat() if watermark else None,
             "freshness_known": last_sync is not None,
         }
@@ -374,12 +432,37 @@ class CostLedgerSyncWorker:
         cursor = connection.cursor()
         cursor.execute(self.HEARTBEAT_WRITE_SQL, {"cloud_id": _HEARTBEAT_ID, "created_at": _EPOCH})
 
-    def _last_successful_sync(self, connection: DbConnection, now: datetime) -> tuple[datetime | None, float | None]:
+    def _write_coverage(self, connection: DbConnection, covered_through: datetime) -> None:
         cursor = connection.cursor()
-        cursor.execute(self.HEARTBEAT_READ_SQL, {"cloud_id": _HEARTBEAT_ID})
+        cursor.execute(
+            self.COVERAGE_WRITE_SQL, {"cloud_id": _COVERAGE_ID, "created_at": _EPOCH, "covered_through": covered_through}
+        )
+
+    def _read_sentinel_time(self, connection: DbConnection, now: datetime, cloud_id: str) -> tuple[datetime | None, float | None]:
+        cursor = connection.cursor()
+        cursor.execute(self.HEARTBEAT_READ_SQL, {"cloud_id": cloud_id})
         rows = cursor.fetchall()
         value = _parse_dt(rows[0][0]) if rows and rows[0][0] is not None else None
         return value, ((now - value).total_seconds() if value else None)
+
+    def _last_successful_sync(self, connection: DbConnection, now: datetime) -> tuple[datetime | None, float | None]:
+        return self._read_sentinel_time(connection, now, _HEARTBEAT_ID)
+
+    def _covered_through(self, connection: DbConnection, now: datetime) -> tuple[datetime | None, float | None]:
+        return self._read_sentinel_time(connection, now, _COVERAGE_ID)
+
+    # -- single flight ---------------------------------------------------------------------------
+    def _acquire_pass_lock(self, connection: DbConnection) -> bool:
+        cursor = connection.cursor()
+        cursor.execute(self.PASS_LOCK_SQL, {"key": _PASS_LOCK_KEY})
+        rows = cursor.fetchall()
+        return bool(rows and rows[0][0] is True)
+
+    def _release_pass_lock(self, connection: DbConnection) -> None:
+        try:
+            connection.cursor().execute(self.PASS_UNLOCK_SQL, {"key": _PASS_LOCK_KEY})
+        except Exception:  # noqa: BLE001 - the lock also ends with the connection
+            pass
 
     # -- cloud read (source of truth) ------------------------------------------------------------
     def _fetch_window(self, start: datetime, end: datetime) -> tuple[list[dict[str, Any]], bool]:

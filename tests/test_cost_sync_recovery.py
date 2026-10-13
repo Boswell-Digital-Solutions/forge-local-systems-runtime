@@ -48,8 +48,10 @@ class _Cursor:
         elif "ANY(%(ids)s)" in sql:
             wanted = set(p.get("ids", []))
             self._last = [(cid,) for cid in self._store if cid in wanted]
+        elif "pg_try_advisory_lock" in sql:
+            self._last = [(True,)]
         elif "ON CONFLICT (cloud_id) DO UPDATE" in sql:
-            self._store[p["cloud_id"]] = {"created_at": p["created_at"], "synced_at": datetime.now(UTC)}
+            self._store[p["cloud_id"]] = {"created_at": p["created_at"], "synced_at": p.get("covered_through") or datetime.now(UTC)}
             self._pending.add(p["cloud_id"])
             self._last = []
         elif sql.startswith("SELECT synced_at"):
@@ -165,8 +167,8 @@ def run(db):
 
 
 def mirrored(db):
-    """The ids recorded as mirrored. The heartbeat sentinel is not an entry."""
-    return set(db.seen) - {w._HEARTBEAT_ID}
+    """The ids recorded as mirrored. The sentinel rows (heartbeat, coverage) are not entries."""
+    return set(db.seen) - w._RESERVED_IDS
 
 
 def old(hours):

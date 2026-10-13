@@ -28,8 +28,10 @@ class _FakeCursor:
         elif sql.startswith("SELECT synced_at"):
             row = self._store.get(p.get("cloud_id"))
             self._last = [(row.get("synced_at"),)] if row and row.get("synced_at") else []
+        elif "pg_try_advisory_lock" in sql:
+            self._last = [(True,)]
         elif "ON CONFLICT (cloud_id) DO UPDATE" in sql:
-            self._store[p["cloud_id"]] = {"created_at": p["created_at"], "synced_at": datetime.now(UTC)}
+            self._store[p["cloud_id"]] = {"created_at": p["created_at"], "synced_at": p.get("covered_through") or datetime.now(UTC)}
             self._last = []
         elif "ANY(%(ids)s)" in sql:
             wanted = set(p.get("ids", []))
@@ -126,7 +128,7 @@ def test_failed_local_write_is_not_marked_seen(monkeypatch):
     result = CostLedgerSyncWorker().sync_once(conn)
     assert (result.synced, result.failed) == (0, 1)
     assert result.complete is False and result.stopped_reason == "local_write_unavailable"
-    assert set(conn.seen) <= {worker_mod._HEARTBEAT_ID}  # not marked seen → a later run retries it
+    assert set(conn.seen) <= worker_mod._RESERVED_IDS  # not marked seen → a later run retries it
 
 
 def test_empty_cloud_is_noop(monkeypatch):
