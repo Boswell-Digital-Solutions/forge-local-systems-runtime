@@ -59,6 +59,12 @@ Repository-level findings. Each entry has a date, what is wrong, the cause, and 
 - **Still needed before this works in production:** a `costs:read` key for the service `forge_local_runtime` (operator step), the DataForge branch accepted, pushed and deployed (operator steps), and the constitutional documents of this repo (see `FLS-COST-SYNC-OUTSIDE-AUTHORITY-20261013`).
 - **Related**: Forge_Command `FC-COSTS-WRITER-UNLISTED-20261013`, inventory row 14.
 
+## Operator ruling on the sync identity (2026-10-13) — FLS-COST-SYNC-IDENTITY-RULING-20261013
+
+- The cost sync worker uses the canonical DataForge identity `forge_local_runtime`, with its own credential (`FORGE_COST_SYNC_CLOUD_API_KEY`) and only the cloud `costs:read` permission: **APPROVED as a design.** The worker keeps a separate local ingestion credential.
+- Compatibility check (2026-10-13): `forge_local_runtime` is already a canonical identity in the DataForge registry. It holds `runtime-promotion:receipts:write`. No conflict was found. No second identity was invented. The worker does not use `forge_command`.
+- **Not authorized:** key issuance, activation, deployment. Open: the worker lives outside this repository's constitutional documents (`FLS-COST-SYNC-OUTSIDE-AUTHORITY-20261013`).
+
 ## A default local database password is tracked in `.env` (Open 2026-10-13; classified 2026-10-13) — FLS-TRACKED-ENV-20261013
 
 - **Location**: `.env` at the repository root. The file has one assignment: `FORGE_LOCAL_RUNTIME_DATABASE_URL`. The earlier text of this entry quoted the value. It was published with PR 4. This text does not repeat it.
@@ -67,4 +73,5 @@ Repository-level findings. Each entry has a date, what is wrong, the cause, and 
 - **Credential affected, if any**: the PostgreSQL role named in the URL on any machine that runs the local runtime database with that default password. Scope: reachable only if that server accepts connections beyond loopback. Not verified: no connection was made and the credential was not tested.
 - **Rotation decision (operator)**: if any such role exists and listens beyond loopback, change its password. If it listens on loopback only, the risk is local. Either way the decision is the operator's. No rotation was done. No history rewrite is authorized.
 - **File disposition (operator)**: keep as a documented sample (rename to `.env.example`, remove the password) or untrack it and add it to the ignore list. Not changed.
+- **Operator ruling (2026-10-13): publication gate.** Keep this finding as a gate on any publication of this repository's work until the contents and exposure are classified. The classification above is complete and is reused; it is not repeated. No credential rotation and no history rewrite is authorized.
 - **Not verified**: whether other branches add lines to the file.
