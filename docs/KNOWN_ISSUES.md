@@ -59,9 +59,12 @@ Repository-level findings. Each entry has a date, what is wrong, the cause, and 
 - **Still needed before this works in production:** a `costs:read` key for the service `forge_local_runtime` (operator step), the DataForge branch accepted, pushed and deployed (operator steps), and the constitutional documents of this repo (see `FLS-COST-SYNC-OUTSIDE-AUTHORITY-20261013`).
 - **Related**: Forge_Command `FC-COSTS-WRITER-UNLISTED-20261013`, inventory row 14.
 
-## A default local database password is tracked in `.env` (Open 2026-10-13) — FLS-TRACKED-ENV-20261013
+## A default local database password is tracked in `.env` (Open 2026-10-13; classified 2026-10-13) — FLS-TRACKED-ENV-20261013
 
-- **Location**: `.env` at the repository root. Line 1 sets `FORGE_LOCAL_RUNTIME_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/forge_local_runtime`.
-- **What is wrong**: the file is tracked. The value is the default PostgreSQL development password on `localhost`, not a production secret. It still teaches the habit of committing `.env`, and a real value could be added to this file later.
-- **Not verified**: whether other lines exist beyond line 1 in other branches, and whether the file is intentional.
-- **Not changed**: nothing was removed or rewritten. Decision for the operator: keep as a documented sample (rename to `.env.example`), or untrack it.
+- **Location**: `.env` at the repository root. The file has one assignment: `FORGE_LOCAL_RUNTIME_DATABASE_URL`. The earlier text of this entry quoted the value. It was published with PR 4. This text does not repeat it.
+- **Classification (local, by pattern; the value is not printed here)**: a PostgreSQL URL with a user name and a password; host class **loopback**; the password is 8 characters, equals the user name, and is in the common-default list; low entropy. It is a **well-known development default**, not a production secret. It is **not** a token, a provider key or a private key.
+- **Exposure**: this repository is **public** on GitHub (read 2026-10-13). The file appears in one commit (`fc25a5b`). Anyone can read the value and the history. Removing the file from the next commit does **not** remove the history and does **not** change any password.
+- **Credential affected, if any**: the PostgreSQL role named in the URL on any machine that runs the local runtime database with that default password. Scope: reachable only if that server accepts connections beyond loopback. Not verified: no connection was made and the credential was not tested.
+- **Rotation decision (operator)**: if any such role exists and listens beyond loopback, change its password. If it listens on loopback only, the risk is local. Either way the decision is the operator's. No rotation was done. No history rewrite is authorized.
+- **File disposition (operator)**: keep as a documented sample (rename to `.env.example`, remove the password) or untrack it and add it to the ignore list. Not changed.
+- **Not verified**: whether other branches add lines to the file.
