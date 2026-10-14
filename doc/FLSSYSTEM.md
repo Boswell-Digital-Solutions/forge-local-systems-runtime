@@ -325,6 +325,19 @@ starts the server itself on a unix socket and no TCP port. It finds `initdb` thr
 DataForge-Local are loopback HTTP fakes (`tests/cost_sync_support.py`) that follow the paging contract above.
 The older tests in `tests/test_cost_sync_*.py` use a fake connection and need no server.
 
+### Runtime promotion receipt credential (2026-10-13; local branch, not deployed)
+
+The runtime promotion worker (`runtime_promotion/worker.py`) posts each receipt to
+`POST /api/v1/runtime-promotion/receipts/local-failure-pattern`. DataForge needs a service key for the service
+`forge_local_runtime` with the scope `runtime-promotion:receipts:write`. The worker reads that key from its own variable
+`FORGE_RUNTIME_PROMOTION_RECEIPT_API_KEY`. It reads no other variable for this purpose: not
+`FORGE_COST_SYNC_CLOUD_API_KEY` (scope `costs:read`), not `FORGE_COST_SYNC_LOCAL_API_KEY`, not a shared DataForge key,
+and not an administrative token. One identity holds two credentials, and neither credential has the other's permission.
+`FORGE_RUNTIME_PROMOTION_RECEIPT_URL` may override the destination. The default is the loopback URL in the module.
+The key goes only over HTTPS or to a loopback host, and a redirect is never followed. With no key set, no credential is sent,
+DataForge answers 401, and the artifact is released for retry as before. A refusal is reported with fixed codes (status,
+credential state, reason code). The message never holds the key or the response body.
+
 Environment variables: `DATAFORGE_URL` (cloud base; default the cloud Render URL),
 `DATAFORGE_LOCAL_URL` (default `http://127.0.0.1:8005`), `FORGE_COST_SYNC_CLOUD_API_KEY`,
 `FORGE_COST_SYNC_LOCAL_API_KEY`, `FORGE_COST_SYNC_LOOKBACK_DAYS` (first run, default 30),

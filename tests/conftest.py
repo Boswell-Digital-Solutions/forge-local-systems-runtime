@@ -28,3 +28,7 @@ def pg(pg_cluster):
         yield database
     finally:
         database.drop()
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "serve(status, body, location): loopback server answer for test_runtime_promotion_credentials")
