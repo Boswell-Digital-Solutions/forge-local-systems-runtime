@@ -7,8 +7,9 @@ does not mark an entry seen when its local write fails.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import cost_sync.worker as worker_mod
 from cost_sync.worker import CostLedgerSyncWorker
@@ -24,6 +25,14 @@ class _FakeCursor:
         if "max(created_at)" in sql:
             values = [row["created_at"] for row in self._store.values() if row["created_at"]]
             self._last = [(max(values) if values else None,)]
+        elif sql.startswith("SELECT synced_at"):
+            row = self._store.get(p.get("cloud_id"))
+            self._last = [(row.get("synced_at"),)] if row and row.get("synced_at") else []
+        elif "pg_try_advisory_lock" in sql:
+            self._last = [(True,)]
+        elif "ON CONFLICT (cloud_id) DO UPDATE" in sql:
+            self._store[p["cloud_id"]] = {"created_at": p["created_at"], "synced_at": p.get("covered_through") or datetime.now(UTC)}
+            self._last = []
         elif "ANY(%(ids)s)" in sql:
             wanted = set(p.get("ids", []))
             self._last = [(cid,) for cid in self._store if cid in wanted]
@@ -51,7 +60,11 @@ class _FakeConnection:
         pass
 
 
-def _entry(cloud_id: str, *, provider: str = "anthropic", created: str = "2026-07-25T12:00:00Z") -> dict[str, Any]:
+NOW = datetime(2026, 10, 13, 12, 0, 0, tzinfo=UTC)
+_RECENT = (NOW - timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _entry(cloud_id: str, *, provider: str = "anthropic", created: str = _RECENT) -> dict[str, Any]:
     return {
         "id": cloud_id,
         "user_id": "u1",
@@ -70,8 +83,20 @@ def _entry(cloud_id: str, *, provider: str = "anthropic", created: str = "2026-0
 
 
 def _patch_cloud(monkeypatch, entries: list[dict[str, Any]]) -> None:
-    # One page (fewer than the 200 default limit) so the fetch loop terminates.
-    monkeypatch.setattr(worker_mod, "_http_get_json", lambda url: {"items": entries, "total": len(entries)})
+    """A cloud that honours since/until like the real route (inclusive, newest first)."""
+    monkeypatch.setattr(worker_mod, "_utcnow", lambda: NOW)
+
+    def get(url: str) -> dict[str, Any]:
+        q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+        since = datetime.fromisoformat(q["since"].replace("Z", "+00:00"))
+        until = datetime.fromisoformat(q["until"].replace("Z", "+00:00"))
+        rows = [
+            e for e in entries
+            if since <= datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")) <= until
+        ]
+        return {"items": rows, "total": len(rows)}
+
+    monkeypatch.setattr(worker_mod, "_http_get_json", get)
 
 
 def test_mirrors_unseen_then_skips_on_rerun(monkeypatch):
@@ -94,7 +119,7 @@ def test_mirrors_unseen_then_skips_on_rerun(monkeypatch):
 
 def test_failed_local_write_is_not_marked_seen(monkeypatch):
     def boom(url, body):
-        raise RuntimeError("DataForge-Local unreachable")
+        raise worker_mod.LocalWriteError("unavailable")
 
     monkeypatch.setattr(worker_mod, "_http_post_json", boom)
     _patch_cloud(monkeypatch, [_entry("c1")])
@@ -102,7 +127,8 @@ def test_failed_local_write_is_not_marked_seen(monkeypatch):
 
     result = CostLedgerSyncWorker().sync_once(conn)
     assert (result.synced, result.failed) == (0, 1)
-    assert conn.seen == {}  # not marked seen → a later run retries it
+    assert result.complete is False and result.stopped_reason == "local_write_unavailable"
+    assert set(conn.seen) <= worker_mod._RESERVED_IDS  # not marked seen → a later run retries it
 
 
 def test_empty_cloud_is_noop(monkeypatch):

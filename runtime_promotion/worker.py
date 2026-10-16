@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import json
+import os
 from typing import Any, Protocol, cast, runtime_checkable
-from urllib import error, request
+from urllib import error, parse, request
 
 from runtime_promotion.persistence import DbConnection
 
@@ -12,6 +13,64 @@ from runtime_promotion.persistence import DbConnection
 DATAFORGE_RECEIPT_URL = (
     "http://127.0.0.1:8001/api/v1/runtime-promotion/receipts/local-failure-pattern"
 )
+
+# The receipt write needs a DataForge service key: scope ``runtime-promotion:receipts:write`` on the service
+# ``forge_local_runtime``. This is a DEDICATED credential. It is not the cost-sync read key
+# (``FORGE_COST_SYNC_CLOUD_API_KEY``, scope ``costs:read``), and no code here falls back to that key, to any
+# other key, or to an administrative credential. An unset variable means no credential is sent, and DataForge
+# answers 401. That is the hardened denial, and it stays the failure mode.
+RECEIPT_KEY_ENV = "FORGE_RUNTIME_PROMOTION_RECEIPT_API_KEY"
+# Optional destination override. The default above is kept.
+RECEIPT_URL_ENV = "FORGE_RUNTIME_PROMOTION_RECEIPT_URL"
+_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+class _NoRedirect(request.HTTPRedirectHandler):
+    """Never follow a redirect: the key must not travel to an origin that was not chosen."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+        return None
+
+
+_OPENER = request.build_opener(_NoRedirect)
+
+
+def _urlopen(req: request.Request, timeout: float):
+    return _OPENER.open(req, timeout=timeout)
+
+
+def receipt_url() -> str:
+    return (os.environ.get(RECEIPT_URL_ENV) or "").strip() or DATAFORGE_RECEIPT_URL
+
+
+def receipt_headers(url: str) -> tuple[dict[str, str], str]:
+    """Headers for the receipt write and the credential state.
+
+    State is ``attached``, ``not_configured`` or ``withheld_cleartext`` (the key goes only over HTTPS or to a
+    loopback host). The only key read is ``FORGE_RUNTIME_PROMOTION_RECEIPT_API_KEY``.
+    """
+    headers = {"Content-Type": "application/json"}
+    key = os.environ.get(RECEIPT_KEY_ENV, "").strip()
+    if not key:
+        return headers, "not_configured"
+    parsed = parse.urlparse(url)
+    if not (parsed.scheme == "https" or (parsed.scheme == "http" and (parsed.hostname or "") in _LOOPBACK)):
+        return headers, "withheld_cleartext"
+    headers["Authorization"] = f"Bearer {key}"
+    return headers, "attached"
+
+
+def _refusal_code(exc: error.HTTPError) -> str:
+    """A fixed reason code from a refusal body. Never the body itself."""
+    try:
+        body = json.loads(exc.read(4096).decode("utf-8"))
+    except Exception:
+        return "unreadable"
+    detail = body.get("detail") if isinstance(body, dict) else None
+    code = detail.get("code") if isinstance(detail, dict) else (body.get("code") if isinstance(body, dict) else None)
+    if isinstance(code, str) and 0 < len(code) <= 64 and all(c.isalnum() or c in "_-" for c in code):
+        return code
+    return "unrecognized"
 
 
 @runtime_checkable
@@ -229,18 +288,24 @@ class PromotionDeliveryWorker:
         }
 
         body = json.dumps(envelope).encode("utf-8")
-        http_request = request.Request(
-            DATAFORGE_RECEIPT_URL,
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        url = receipt_url()
+        headers, credential_state = receipt_headers(url)
+        http_request = request.Request(url, data=body, headers=headers, method="POST")
 
         try:
-            with request.urlopen(http_request, timeout=10) as response:
+            with _urlopen(http_request, 10) as response:
                 status_code = response.getcode()
                 response_body = response.read().decode("utf-8")
         except error.HTTPError as exc:
+            if exc.code in (401, 403):
+                # A refusal is named with fixed codes only: the status, whether a credential was sent, and the
+                # reason code. The response body and the key are never copied into the message.
+                raise RuntimeError(
+                    f"DataForge refused the receipt (HTTP {exc.code}; credential: {credential_state}; "
+                    f"reason: {_refusal_code(exc)})"
+                ) from None
+            if 300 <= exc.code < 400:
+                raise RuntimeError(f"DataForge answered a redirect (HTTP {exc.code}); it is not followed") from None
             details = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"DataForge HTTP {exc.code}: {details}") from exc
         except error.URLError as exc:
