@@ -2,6 +2,14 @@
 
 Repository-level findings. Each entry has a date, what is wrong, the cause, and an open or closed scope.
 
+## The cost sync worker is activated on forge-box and completes only while DataForge-Local runs (2026-10-16) — FLS-COST-SYNC-ACTIVATED-20261016
+
+- **Status**: Active. Recorded 2026-10-16.
+- **What changed**: #5 merged the worker change. Migration `004_cost_ledger_sync_seen.sql` is applied to the local runtime database (`cost_sync.seen`). A `forge_local_runtime`/`costs:read` key was minted with Forge Command's `forge keys mint-cost-sync-key` into `~/.config/forge/cost-sync.env` (mode 0600). A user systemd timer, `forge-cost-sync.timer`, runs `scripts/run_cost_sync_worker.py` every 15 minutes through `forge-cost-sync.service`.
+- **Evidence**: without the key, a pass stopped at `cloud_read_refused` (401, `no_credential_sent`). With the key, a pass read 17 cloud rows.
+- **Open**: that pass stopped at `local_write_unavailable`. DataForge-Local (`127.0.0.1:8005`) was not running, because Forge Command was closed and starts DataForge-Local as its child. A pass completes only while Forge Command, and so DataForge-Local, runs. A pass while it is closed exits 1 and writes nothing. This is the designed behavior; it is not a defect. Whether DataForge-Local becomes an independent service is an open decision.
+- **Superseded**: the statements above that say the worker change is unmerged, or that no key is issued, are true only before 2026-10-16.
+
 ## The cost sync worker lost rows in two cases and reported success (Closed in the local branch 2026-10-13, not pushed) — FLS-COST-SYNC-LOST-ROWS-20261013
 
 - **Location**: `cost_sync/worker.py`, `scripts/run_cost_sync_worker.py`.
