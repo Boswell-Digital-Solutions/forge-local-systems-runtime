@@ -96,7 +96,7 @@ starts the server itself on a unix socket and no TCP port. It finds `initdb` thr
 DataForge-Local are loopback HTTP fakes (`tests/cost_sync_support.py`) that follow the paging contract above.
 The older tests in `tests/test_cost_sync_*.py` use a fake connection and need no server.
 
-### Runtime promotion receipt credential (2026-10-13; local branch, not deployed)
+### Runtime promotion receipt credential (on `main` since #5; no key minted)
 
 The runtime promotion worker (`runtime_promotion/worker.py`) posts each receipt to
 `POST /api/v1/runtime-promotion/receipts/local-failure-pattern`. DataForge needs a service key for the service
