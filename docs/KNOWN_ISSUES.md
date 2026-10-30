@@ -2,6 +2,15 @@
 
 Repository-level findings. Each entry has a date, what is wrong, the cause, and an open or closed scope.
 
+## No CI runs on this repository (Open 2026-10-29; elevated priority) — FLS-NO-CI-20261029
+
+- **Priority**: elevated. This repository runs two workers (`cost_sync/` on a timer, `runtime_promotion/`), so an unverified change can reach running code.
+
+- **What is wrong**: the repository has no `.github/workflows`. No check runs on a pull request, so no test, lint or `doc/system/BUILD.sh` result is tied to a commit. Yet the repository carries two running workers (`cost_sync/` under a systemd user timer, and `runtime_promotion/`).
+- **Found**: 2026-10-29, by the SEC-03 review of #7. The operator allowed a CI-equivalent local review for #7 only (forge register, SR-20261028 SEC-03), and recorded the absence of CI as a governance improvement item. Local review is not a standing substitute.
+- **Fix**: none yet. Add a workflow that runs the test suite and `bash doc/system/BUILD.sh` on every pull request.
+- **Status**: Open until CI is implemented and verified. Recording the gap does not accept it as permanent.
+
 ## The cost sync worker is activated on forge-box and completes only while DataForge-Local runs (2026-10-16) — FLS-COST-SYNC-ACTIVATED-20261016
 
 - **Status**: Active. Recorded 2026-10-16.
