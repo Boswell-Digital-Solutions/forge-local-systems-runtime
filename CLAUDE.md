@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Repo Identity
+
+- Default branch: main
+
 ## Project Overview
 
 Forge Local Runtime is a **governance-first constitutional repository** — it defines runtime doctrine,
