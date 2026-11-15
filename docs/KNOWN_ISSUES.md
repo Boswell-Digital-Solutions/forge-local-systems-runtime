@@ -2,6 +2,16 @@
 
 Repository-level findings. Each entry has a date, what is wrong, the cause, and an open or closed scope.
 
+## 18 `doc/system` chapters are stubs that are byte-identical to chapters of `forge-local-runtime` (Open 2026-11-15) — FLS-DOC-SYSTEM-SHARED-STUBS-20261115
+
+- **Source**: BDS-ORG-ARCH-AUDIT-2026-11. Evidence class: Observed (doc tree), at `forge-local-systems-runtime@80ba92506a` and `forge-local-runtime@3500ef44e9`.
+- **What is wrong**: 18 chapters in `doc/system/` have the same SHA-256 hash as the chapter of the same name in `forge-local-runtime`: `01-architecture.md`, `01-overview-philosophy.md`, `02-architecture.md`, `03-tech-stack.md`, `04-project-structure.md`, `05-configuration.md`, `06-design-system.md`, `07-frontend.md`, `08-api-layer.md`, `09-backend.md`, `10-scope.md`, `11-database-schema.md`, `12-ai-integration.md`, `13-error-handling.md`, `15-handover-migration-notes.md`, `20-structure.md`, `30-governance.md` and `40-change-control.md`. Each is 294 to 526 bytes. Five of them (`01-architecture.md`, `10-scope.md`, `20-structure.md`, `30-governance.md`, `40-change-control.md`) are registry bootstrap placeholders. The others are one-screen baseline text. `doc/system/02-architecture.md:L8` lists a folder tree under the heading `forge-local-runtime/`, with entries such as `.mypy_cache/` and `.vscode/`. That heading names the other repository. The audit first counted 17 such chapters; a hash comparison of the clones above finds 18.
+- **Root cause**: not determined. Both repositories were bootstrapped by the same generator. The text of one was copied to the other, or the generator wrote the same text.
+- **Effect**: a reader cannot tell from these chapters which repository they describe. This repository runs two workers (`cost_sync/` and `runtime_promotion/`). The folder list in `02-architecture.md` names `runtime_promotion/` and omits `cost_sync/`. It also names `.mypy_cache/`, which this repository does not track.
+- **Fix**: none applied. Recommendation from the audit: author the chapters for this repository, or remove the stubs and the index entries. Then run `bash doc/system/BUILD.sh`.
+- **Related**: the same finding in `forge-local-runtime` `docs/KNOWN_ISSUES.md`.
+- **Scope**: Open.
+
 ## No CI runs on this repository (Open 2026-10-29; elevated priority) — FLS-NO-CI-20261029
 
 - **Priority**: elevated. This repository runs two workers (`cost_sync/` on a timer, `runtime_promotion/`), so an unverified change can reach running code.
